@@ -41,6 +41,7 @@ class Player:
         self.name = name
         self.hand = []
         self.ia = False
+        
     def add_card(self, carta):
         self.hand.append(carta)
 
@@ -49,101 +50,87 @@ class Player:
         for i, card in enumerate(self.hand):
             print(f"{i+1}. {card.carta}")
 
-
 class IA(Player):
     def __init__(self, name, team):
         super().__init__(name, team)
         self.ia = True
 
-    def choose_best_card(self, cards_played):
-        manilhacounter = 0
+    def choose_best_card(self, cards_played, manilhas):
         highest_card = None
-        highest_card_v = -1
+        highest_card_value = -1
         lowest_card = None
-        lowest_card_v = float('inf')
-        highest_card_in_table = -1
-        
-        for card_p in cards_played:
-            if card_p.value > highest_card_in_table:
-                highest_card_in_table = card_p.value
-        
+        lowest_card_value = float('inf')
+        highest_card_on_table = max([self.manilha_valor(card, manilhas) for card in cards_played], default=-1)
+
         for card in self.hand:
-            if card.manilha:
-                manilhacounter += 1
-            if card.value >= highest_card_v:
-                highest_card_v = card.value
+            card_value = self.manilha_valor(card, manilhas)
+            if card_value > highest_card_value:
+                highest_card_value = card_value
                 highest_card = card
-            if card.value <= lowest_card_v:
-                lowest_card_v = card.value
+            if card_value < lowest_card_value:
+                lowest_card_value = card_value
                 lowest_card = card
-        
-        if manilhacounter >= 2:
-            return random.choice(self.hand)
-        
-        if len(cards_played) == 0:
+
+        if not cards_played:
             return lowest_card
-        
-        if len(cards_played) == 1:
-            if highest_card_in_table < highest_card.value:
-                return highest_card
-            return lowest_card
-        
-        if len(cards_played) >= 2:
-            if highest_card_in_table < highest_card.value:
-                return highest_card
-            return lowest_card
-        
+
+        if highest_card_on_table < highest_card_value:
+            return highest_card
+
         return lowest_card
 
-    def should_ask_truco(self, round_number, points, cards_played):
-        manilhacounter = 0
-        strong_cards = 0
-        threshold = 5
+    def should_ask_truco(self, round_number, points, cards_played, manilhas):
+        strong_cards = sum(1 for card in self.hand if self.manilha_valor(card, manilhas) >= 15)
+
         
-        for card in self.hand:
-            if card.manilha:
-                manilhacounter += 1
-            if card.value >= threshold:
-                strong_cards += 1
         
-        if points >= 8:
+
+        if round_number == 2 and strong_cards >= 2:
             return True
-        
-        if manilhacounter >= 1 and strong_cards >= 2:
+
+        if round_number == 2 and strong_cards >= 1 and points == 1:
             return True
-        
-        if round_number == 1 and strong_cards >= 2:
+
+        highest_card_on_table = max([self.manilha_valor(card, manilhas) for card in cards_played], default=-1)
+        if highest_card_on_table < max(self.manilha_valor(card, manilhas) for card in self.hand) and points == 1:
             return True
-        
-        if round_number == 2 and strong_cards >= 1:
-            return True
-        
-        if len(cards_played) >= 1:
-            highest_card_in_table = max(card.value for card in cards_played)
-            if highest_card_in_table < max(card.value for card in self.hand):
-                return True
-        
+
         return False
 
-        
-   
-        
+    def manilha_valor(self, carta, manilhas):
+        # Assumindo que 'manilhas' é uma lista de cartas
+        if carta in manilhas:
+            return 20 + naipes[carta.naipe]
+        return carta.value
+
+    def decide_truco_response(self, round_value, cards_played, manilhas):
+        strong_cards = sum(1 for card in self.hand if self.manilha_valor(card, manilhas) >= 15)
+        weak_cards = sum(1 for card in self.hand if self.manilha_valor(card, manilhas) < 10)
+
+        # Se tiver pelo menos 2 cartas fortes e poucas fracas, aceita.
+        if strong_cards >= 2 and weak_cards == 0:
+            return "sim"
+
+        # Se tiver cartas mais fortes que as já jogadas, aceita.
+        highest_card_on_table = max([self.manilha_valor(card, manilhas) for card in cards_played], default=-1)
+        if highest_card_on_table < max(self.manilha_valor(card, manilhas) for card in self.hand):
+            return "sim"
+
+        # Considerando a pontuação e o valor da rodada
+        if round_value <= 2 and strong_cards >= 1:
+            return "sim"
+
+        # Caso contrário, recusa.
+        return "nao"
 
 
-
-
-
-
-            
-
-    
 class Game:
     def __init__(self):
         self.team1_len = members_in_team
         self.team2_len = members_in_team
         self.team1 = []
         self.team2 = []
-        self.baralho = Baralho()
+        
         
         while len(self.team1) < self.team1_len:
             name = input("\nDigite o nome do jogador do time 1: ")
@@ -168,34 +155,39 @@ class Game:
         self.last_truco_team = None  # Controle do último time que trucou
         self.vira = None
         self.manilhas = []
+
     def game(self):
-        while self.team1_score < 12 or self.team2_score < 12:
+        while self.team1_score < 12 and self.team2_score < 12:
             self.play_round()
+            print(f">>>>>>>>>>>>>>>CURRENT SCORE<<<<<<<<<<<<<<<\nTIME 1: {self.team1_score}\nTIME 2: {self.team2_score}")
+            
         if self.team1_score >= 12:
             print(f"------------------------------------\nO time vencedor foi o time 1\n ------------------------------------")
         if self.team2_score >= 12:
             print(f"------------------------------------\nO time vencedor foi o time 2\n ------------------------------------")
+
     def determinar_manilhas(self):
         vira_index = list(cartas.values()).index(self.vira.value)
         manilha_index = (vira_index + 1) % len(cartas)
         manilha_num = list(cartas.keys())[manilha_index]
         self.manilhas = [Carta(manilha_num, naipe, manilha=True) for naipe in naipes]
-        # Set manilha attribute to True for each manilha card
+        # Marcar as manilhas na mão de todos os jogadores
+        for player in self.team1 + self.team2:
+            for card in player.hand:
+                if card.carta_num == manilha_num:
+                    card.manilha = True
         
         print(f"\nVira: {self.vira.carta}")
         print(f"Manilhas: {', '.join([manilha.carta for manilha in self.manilhas])}")
-        
+
     def manilha_valor(self, carta):
-        
         if carta.manilha:
             return 20 + naipes[carta.carta_naipe]
         return carta.value
 
     def generate_cards(self):
         for player in self.team1 + self.team2:
-            for _ in range(3):
-                carta = self.baralho.distribuir(1)[0]
-                player.add_card(carta)
+            player.hand = self.baralho.distribuir(3)
 
     def clear_cards(self):
         for player in self.team1 + self.team2:
@@ -220,7 +212,15 @@ class Game:
 
         print(f"\n{current_player.name} pede {new_value}!")
 
-        decision = input(f"Aceitar {new_value}? (sim/nao): ").lower()
+        # Determinar o time adversário para decidir sobre o truco
+        opponent_team = self.team1 if current_player.team == "time2" else self.team2
+        opponent_names = [player.name for player in opponent_team if not player.ia]
+
+        if opponent_names:
+            decision = input(f"Aceitar {new_value}? (sim/nao): ").lower()
+        else:
+            decision = random.choice(opponent_team).decide_truco_response(self.round_value, [], self.manilhas)
+            print(f"\nIA decide: {decision}")
 
         if decision == "sim":
             print(f"\n{new_value} aceito!")
@@ -239,15 +239,19 @@ class Game:
         team1_partial_score = 0
         team2_partial_score = 0
         base_order = [self.team1[0], self.team2[0], self.team1[1], self.team2[1]]
-        self.generate_cards()
+        
         self.round_value = 1  # Reiniciar valor da rodada
         self.last_truco_team = None  # Reiniciar controle de truco
 
-        # Definir vira e manilhas
+        # Definir baralho, vira e manilhas
+        self.baralho = Baralho()
+        self.generate_cards()
         self.vira = self.baralho.virar_carta()
         self.determinar_manilhas()
 
         while team1_partial_score < 2 and team2_partial_score < 2:
+            self.vira = self.baralho.virar_carta()
+            self.determinar_manilhas()
             order = base_order[self.index:] + base_order[:self.index]
             cards_played = []
             current_highest_card = None
@@ -260,7 +264,7 @@ class Game:
                         points = self.team1_score
                     else:
                         points = self.team2_score
-                    truco = player.should_ask_truco(round_number, points, cards_played)
+                    truco = player.should_ask_truco(round_number, points, cards_played, self.manilhas)
                     if truco:
                         if self.round_value < 12 and self.last_truco_team != player.team:
                             if self.round_value > 1:
@@ -269,11 +273,12 @@ class Game:
                                 truco_prompt = f"{player.name}, quer pedir truco? (sim/não): "
                             if not self.truco(player):
                                 return 
-                    played_card = player.choose_best_card(cards_played)
-                    
-
+                    played_card = player.choose_best_card(cards_played, self.manilhas)
+                    player.hand.remove(played_card)
+                    print(f"{player.name} (IA) joga {played_card.carta}.")
                 else:
                     if cards_played:
+                        print(f"\n------------------VIRA:{self.vira.carta}------------------")
                         print("\n------------------CARTAS DA MESA------------------")
                         for card in cards_played:
                             print(f"\n{card.carta}")
@@ -291,13 +296,13 @@ class Game:
                             if not self.truco(player):
                                 return  # Rodada encerrada devido a recusa de truco
 
+                    choice = int(input("Escolha uma carta para jogar (1-3): ")) - 1
+                    while 0 > choice or choice >= len(player.hand):
+                        print("Escolha inválida")
                         choice = int(input("Escolha uma carta para jogar (1-3): ")) - 1
-                        while 0 > choice or choice >= len(player.hand):
-                            print("Escolha inválida")
-                            choice = int(input("Escolha uma carta para jogar (1-3): ")) - 1
-                        
-                        played_card = player.hand.pop(choice)
-                        print(f"{player.name} joga {played_card.carta}.")
+                    
+                    played_card = player.hand.pop(choice)
+                    print(f"{player.name} joga {played_card.carta}.")
                 cards_played.append(played_card)
                 
                 played_card_value = self.manilha_valor(played_card)
@@ -322,7 +327,6 @@ class Game:
             self.index += 1
             round_number += 1
             print(f"\nPontuação: Time 1: {team1_partial_score}, Time 2: {team2_partial_score}")
-        
 
         if team1_partial_score > team2_partial_score:
             self.team1_score += self.round_value
@@ -330,7 +334,8 @@ class Game:
             self.team2_score += self.round_value
         else:
             print("Rodada empatou, ninguém ganhou pontos!")
-       
+
 if __name__ == "__main__":
     game = Game()
     game.game()
+
