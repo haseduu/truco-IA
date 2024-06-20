@@ -1,5 +1,5 @@
 import random
-
+import time
 # Definição dos valores das cartas e dos naipes
 cartas = {"4": 1, "5": 2, "6": 3, "7": 4, "Q": 5, "J": 6, "K": 7, "Ás": 8, "2": 9, "3": 10}
 naipes = {"Ouros": 1, "Espadas": 2, "Copas": 3, "Paus": 4}
@@ -95,6 +95,7 @@ class IA(Player):
         return "sim"
 
     def should_ask_truco(self, round_number, points, cards_played, manilhas):
+
         # Avalia se deve pedir truco com a possibilidade de aumento
         if points == 11:
             return False
@@ -214,11 +215,12 @@ class Game:
             next_player.show_hand()
             
         
-
-        if opponent_names:
+        if next_player == False:
+            decision = input(f"{next_player.name}, aceitar {new_value}? (sim/nao/aumentar): ").lower()
+        elif not next_player.ia:
             decision = input(f"{next_player.name}, aceitar {new_value}? (sim/nao/aumentar): ").lower()
         else:
-            decision = random.choice(opponent_team).decide_truco_response(self.round_value, [], self.manilhas)
+            decision = next_player.decide_truco_response(self.round_value, [], self.manilhas)
             print(f"\nIA decide: {decision}")
 
         if decision == "sim":
@@ -285,22 +287,24 @@ class Game:
                 print(f"\nRODADA VALENDO: {self.round_value}")
 
                 if player.ia:
-                    
+                   
                     truco = player.should_ask_truco(round_number, points, cards_played, self.manilhas)
                     if truco:
-                        
-                            
                         if self.round_value < 12 and self.last_truco_team != player.team:
                             if self.round_value > 1:
                                 truco_prompt = f"{player.name}, quer aumentar para {self.round_value * 2}? (sim/não): "
                             else:
                                 truco_prompt = f"{player.name}, quer pedir truco? (sim/não): "
                             if not self.truco(player, next_player, points):
+                                self.index += 1
                                 return 
 
                     played_card = player.choose_best_card(cards_played, self.manilhas)
                     player.hand.remove(played_card)
                     print(f"{player.name} (IA) joga {played_card}.")
+                    
+
+
                 else:
                     player.show_hand()
 
@@ -313,6 +317,7 @@ class Game:
                         if input(truco_prompt).lower() == "sim":
                             
                             if not self.truco(player, next_player, points):
+                                self.index += 1
                                 return  # Rodada encerrada devido a recusa de truco
                             player.show_hand()
 
@@ -337,7 +342,7 @@ class Game:
                     
                     print(f"{player.name} joga {played_card}.")
                 
-                cards_played.append(played_card)
+                cards_played.append(f"{player.name} do {player.team} jogou {played_card.carta}")
                 
                 played_card_value = self.manilha_valor(played_card)
                 if played_card_value > current_highest_card_value:
