@@ -228,9 +228,9 @@ class Game:
         elif decision == "nao":
             print("\nRecusado! Oponente ganha a rodada.")
             if current_player.team == "time1":
-                self.team2_score += self.round_value
-            else:
                 self.team1_score += self.round_value
+            else:
+                self.team2_score += self.round_value
             return False
         elif decision == "aumentar":
             self.round_value = new_value
