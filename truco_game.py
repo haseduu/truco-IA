@@ -149,7 +149,7 @@ class AIPlayer(Player):
     def evaluate_hand(self, game_state: 'GameState') -> float:
         total_power = sum(card.get_power() for card in self.hand)
         manilhas = sum(1 for card in self.hand if card.is_manilha)
-        return total_power + (manilhas * 5)
+        return total_power/2 + (manilhas * 10)
 
     def play_card(self, game_state: 'GameState') -> Card:
         if not game_state.table_cards:
@@ -279,18 +279,8 @@ class TrucoGame:
         
         while team1_wins < 2 and team2_wins < 2 and game_state.round_number <= 3:
             self.show_game_state(game_state)
-            players = self.get_play_order()
-            
-            # Check for truco before playing cards
-            for player in players:
-                if player.want_to_truco(game_state):
-                    next_player_index = (players.index(player) + 1) % len(players)
-                    next_player = players[next_player_index]
-                    
-                    if not self.handle_truco(game_state, player, next_player):
-                        return player.team  # Return early if truco is rejected
-            
             winner_team = self.play_trick(game_state)
+            
             if winner_team == "Team1":
                 team1_wins += 1
             elif winner_team == "Team2":
@@ -311,6 +301,16 @@ class TrucoGame:
         
         for player in players:
             self.show_game_state(game_state)
+            
+            # Check for truco before the player's turn
+            if player.want_to_truco(game_state):
+                next_player_index = (players.index(player) + 1) % len(players)
+                next_player = players[next_player_index]
+                
+                if not self.handle_truco(game_state, player, next_player):
+                    return player.team  # Return early if truco is rejected
+            
+            # Player's turn to play a card
             card = player.play_card(game_state)
             game_state.table_cards.append((card, player))
             print(f"\n{player.name} ({player.team_name}) jogou {card}")
@@ -370,7 +370,6 @@ class TrucoGame:
             manilha = Card(next_value, suit, is_manilha=True)
             manilhas.append(manilha)
         return manilhas
-
     def deal_cards(self, deck: Deck) -> None:
         for player in self.team1 + self.team2:
             player.clear_hand()
